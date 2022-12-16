@@ -25,6 +25,7 @@ If on Windows, you can use the [Windows Subsystem for Linux](https://en.wikipedi
 
 1. Clone this repo somewhere on your computer (ex: `git clone https://github.com/NicolasWebDev/reinstall-magisk-on-lineageos`)
 2. Edit the script to set both variables at the beginning of the program.
+3. Install android platform tools (https://developer.android.com/studio/releases/platform-tools). For Mac, use homebrew (https://formulae.brew.sh/cask/android-platform-tools) which will set the correct environment variables for you.
 
 ## Usage
 
