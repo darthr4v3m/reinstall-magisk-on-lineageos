@@ -3,6 +3,7 @@
 set -e
 
 REQUIRED_TOOLS_ARRAY="adb fastboot pip3 python3"
+WORKING_DIRECTORY_PATH="/tmp/reinstall-magisk-on-lineageos/$(date "+%Y-%m-%d-%H-%M-%S")"
 
 PHONE_ADB_SERIAL_NUMBER=paste_yours_here # The adb serial number can be found by running `adb devices`.
 
@@ -54,8 +55,8 @@ get_lineageos_build_archive() {
     if adb shell ls "$build_file_path" 1> /dev/null 2>&1; 
     then
         print_message " [OK] Found '$build_file_path'"
-        print_message " Copying '$build_file_path' to PC in /tmp/lineageos.zip"
-        adb pull "$build_file_path" /tmp/lineageos.zip
+        print_message " Copying '$build_file_path' to PC in '$WORKING_DIRECTORY_PATH'/lineageos.zip"
+        adb pull "$build_file_path" "$WORKING_DIRECTORY_PATH"/lineageos.zip
     else
         print_message " [WARN] Cannot find '$build_file_path'"
         print_message "/data/lineageos_updates/ contains:"
@@ -76,7 +77,7 @@ download_online_build_archive_integrity() {
 
 compute_build_archive_integrity() {
     print_message " Computing file integrity"
-    computed_integrity_full_string=$(shasum -a 256 /tmp/lineageos.zip)
+    computed_integrity_full_string=$(shasum -a 256 "$WORKING_DIRECTORY_PATH"/lineageos.zip)
     IFS=' ' #setting space as delimiter
     read -ra string_array <<< "$computed_integrity_full_string" #reading as an array as tokens separated by IFS
     computed_integrity_cheksum_string=${string_array[0]}
@@ -107,7 +108,7 @@ get_build_url() {
 
 download_latest_lineageos_build() {
     # The --location lets curl follow the redirection.
-    curl --location "$(get_build_url)" --output /tmp/lineageos.zip
+    curl --location "$(get_build_url)" --output "$WORKING_DIRECTORY_PATH"/lineageos.zip
 }
 
 extract_boot_image() {
@@ -131,7 +132,7 @@ install_python_protobuf() {
 }
 
 extract_payload_from_payload_based_ota() {
-    unzip -od /tmp /tmp/lineageos.zip payload.bin
+    unzip -od "$WORKING_DIRECTORY_PATH" "$WORKING_DIRECTORY_PATH"/lineageos.zip payload.bin
 }
 
 generate_random_alnum_string_of_length_6() {
@@ -142,8 +143,8 @@ extract_boot_image_from_payload_file() {
     install_python_protobuf
     # For cases in which the repo has already been cloned, I prefer to create a random directory name to clone into, instead of deleting any file or directory on the user's machine.
     scripts_directory_name="scripts_$(generate_random_alnum_string_of_length_6)"
-    git clone https://github.com/LineageOS/scripts /tmp/"$scripts_directory_name"
-    python3 /tmp/"$scripts_directory_name"/update-payload-extractor/extract.py --partitions boot --output_dir /tmp/ /tmp/payload.bin
+    git clone https://github.com/LineageOS/scripts "$WORKING_DIRECTORY_PATH"/"$scripts_directory_name"
+    python3 "$WORKING_DIRECTORY_PATH"/"$scripts_directory_name"/update-payload-extractor/extract.py --partitions boot --output_dir "$WORKING_DIRECTORY_PATH"/ "$WORKING_DIRECTORY_PATH"/payload.bin
 }
 
 extract_boot_image_from_payload_based_ota() {
@@ -152,19 +153,19 @@ extract_boot_image_from_payload_based_ota() {
 }
 
 is_ota_payload_based() {
-    unzip -l /tmp/lineageos.zip | grep -wq payload.bin
+    unzip -l "$WORKING_DIRECTORY_PATH"/lineageos.zip | grep -wq payload.bin
 }
 
 is_ota_block_based() {
-    unzip -l /tmp/lineageos.zip | grep -wq boot.img
+    unzip -l "$WORKING_DIRECTORY_PATH"/lineageos.zip | grep -wq boot.img
 }
 
 extract_boot_image_from_block_based_ota() {
-    unzip -od /tmp /tmp/lineageos.zip boot.img
+    unzip -od "$WORKING_DIRECTORY_PATH" "$WORKING_DIRECTORY_PATH"/lineageos.zip boot.img
 }
 
 transfer_unpatched_boot_image_to_phone() {
-    adb push /tmp/boot.img /sdcard/Download/boot.img
+    adb push "$WORKING_DIRECTORY_PATH"/boot.img /sdcard/Download/boot.img
 }
 
 patch_boot_image_on_phone() {
@@ -173,7 +174,7 @@ patch_boot_image_on_phone() {
 }
 
 transfer_patched_boot_image_to_pc() {
-    adb pull /sdcard/Download/patched-boot.img /tmp
+    adb pull /sdcard/Download/patched-boot.img "$WORKING_DIRECTORY_PATH"
 }
 
 reboot_to_bootloader() {
@@ -195,7 +196,7 @@ wait_for_phone_to_be_in_fastboot() {
 }
 
 flash_patched_boot_image() {
-    fastboot -s "$PHONE_ADB_SERIAL_NUMBER" flash boot /tmp/patched-boot.img
+    fastboot -s "$PHONE_ADB_SERIAL_NUMBER" flash boot "$WORKING_DIRECTORY_PATH"/patched-boot.img
 }
 
 reboot_phone() {
@@ -229,6 +230,8 @@ is_rooted_debugging_enabled() {
 }
 
 main() {
+    print_message "Creating working directory '$WORKING_DIRECTORY_PATH' for this execution"
+    mkdir -vp "$WORKING_DIRECTORY_PATH"
     print_message "Checking all required tools"
     check_required_tools
     print_message "Looking for phone '$ANDROID_SERIAL'"
@@ -241,13 +244,13 @@ main() {
     get_lineageos_build_archive
     print_message "Verify build archive file integrity"
     verify_build_archive_integrity
-    print_message "Extracting 'boot.img' from build archive in /tmp/boot.img"
+    print_message "Extracting 'boot.img' from build archive in '$WORKING_DIRECTORY_PATH'/boot.img"
     extract_boot_image
     print_message "Copying from PC to phone the boot image in /sdcard/Download/boot.img"
     transfer_unpatched_boot_image_to_phone
     print_message "Patching boot image with Magisk script and moving it in /sdcard/Download/patched-boot.img"
     patch_boot_image_on_phone
-    print_message "Copying patched boot image from phone to PC in /tmp/patched-boot.img"
+    print_message "Copying patched boot image from phone to PC in '$WORKING_DIRECTORY_PATH'/patched-boot.img"
     transfer_patched_boot_image_to_pc
     print_message "Rebooting phone in fastboot mode"
     reboot_to_bootloader
